@@ -1,0 +1,339 @@
+{% extends "base.html" %}
+{% block title %}{{ report.titulo }} – ReportsWeb{% endblock %}
+{% block topbar_title %}
+  <a href="{{ url_for('reports.dashboard') }}" style="color:var(--text-muted);font-size:13px;">
+    <i class="fa-solid fa-chevron-left" style="font-size:10px;"></i> Relatórios
+  </a>
+  <span style="margin:0 8px;color:var(--border);">/</span>
+  <span>{{ report.titulo }}</span>
+{% endblock %}
+
+{% block topbar_extra %}
+{% if current_user.is_admin %}
+<a href="{{ url_for('admin.report_edit', report_id=report.id) }}" class="btn btn-ghost btn-sm no-print">
+  <i class="fa-solid fa-pen-to-square"></i> Editar
+</a>
+{% endif %}
+{% endblock %}
+
+{% block content %}
+
+<!-- ═══ FILTER MODAL ═════════════════════════════════════════════════════════ -->
+<div class="modal-overlay {% if not result %}open{% endif %}" id="filter-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-icon" style="background:{{ color }}25;color:{{ color }};">
+        <i class="fa-solid {{ icon }}"></i>
+      </div>
+      <div>
+        <div class="modal-title">{{ report.titulo }}</div>
+        <div class="modal-subtitle">Preencha os filtros para gerar o relatório</div>
+      </div>
+      {% if result %}
+      <button class="modal-close" onclick="closeModal()">
+        <i class="fa-solid fa-xmark"></i>
+      </button>
+      {% endif %}
+    </div>
+
+    <form method="POST" action="{{ url_for('reports.execute_report', report_id=report.id) }}"
+          id="report-form">
+      <div class="modal-body">
+
+        {% if filters %}
+          {% for f in filters %}
+          <div class="form-group">
+            <label class="form-label" for="f_{{ f.parametro }}">
+              {{ f.label }}
+              {% if f.obrigatorio %}<span style="color:var(--red);margin-left:3px;">*</span>{% endif %}
+            </label>
+
+            {% if f.tipo == 'date' %}
+              <input class="form-control form-control-plain" type="date"
+                     id="f_{{ f.parametro }}" name="{{ f.parametro }}"
+                     {% if f.obrigatorio %}required{% endif %}
+                     value="{{ (params.get(f.parametro) or '') if params else (f.valor_padrao or '') }}">
+
+            {% elif f.tipo == 'number' %}
+              <input class="form-control form-control-plain" type="number"
+                     id="f_{{ f.parametro }}" name="{{ f.parametro }}"
+                     placeholder="{{ f.placeholder or f.label }}"
+                     {% if f.obrigatorio %}required{% endif %}
+                     value="{{ (params.get(f.parametro) or '') if params else (f.valor_padrao or '') }}">
+
+            {% elif f.tipo == 'select' %}
+              <select class="form-control" id="f_{{ f.parametro }}" name="{{ f.parametro }}"
+                      {% if f.obrigatorio %}required{% endif %}>
+                <option value="">— Selecione —</option>
+                {% for opt in options.get(f.parametro, []) %}
+                <option value="{{ opt.value }}"
+                  {% if params and params.get(f.parametro) == opt.value %}selected{% endif %}>
+                  {{ opt.label }}
+                </option>
+                {% endfor %}
+              </select>
+
+            {% elif f.tipo == 'multiselect' %}
+              <select class="form-control" id="f_{{ f.parametro }}" name="{{ f.parametro }}" multiple size="4"
+                      {% if f.obrigatorio %}required{% endif %}>
+                {% set selected_vals = (params.get(f.parametro) or '').split(',') if params else [] %}
+                {% for opt in options.get(f.parametro, []) %}
+                <option value="{{ opt.value }}"
+                  {% if opt.value|string in selected_vals %}selected{% endif %}>
+                  {{ opt.label }}
+                </option>
+                {% endfor %}
+              </select>
+              <small style="color:var(--text-muted);font-size:11px;margin-top:4px;display:block;">
+                Segure CTRL para selecionar múltiplos itens
+              </small>
+
+            {% elif f.tipo == 'checkbox' %}
+              <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+                <input type="checkbox" name="{{ f.parametro }}" value="S"
+                       {% if params and params.get(f.parametro) == 'S' %}checked{% endif %}
+                       style="width:16px;height:16px;accent-color:var(--blue);">
+                <span style="font-size:13px;">{{ f.label }}</span>
+              </label>
+
+            {% else %}
+              <div class="input-wrapper">
+                <input class="form-control form-control-plain" type="text"
+                       id="f_{{ f.parametro }}" name="{{ f.parametro }}"
+                       placeholder="{{ f.placeholder or f.label }}"
+                       {% if f.obrigatorio %}required{% endif %}
+                       value="{{ (params.get(f.parametro) or '') if params else (f.valor_padrao or '') }}">
+              </div>
+            {% endif %}
+          </div>
+          {% endfor %}
+
+        {% else %}
+          <div style="text-align:center;padding:16px 0;color:var(--text-muted);font-size:13px;">
+            <i class="fa-solid fa-circle-info" style="margin-right:6px;color:var(--blue-light);"></i>
+            Este relatório não possui filtros. Clique em <strong>Executar</strong> para gerar.
+          </div>
+        {% endif %}
+      </div>
+
+      <div class="modal-footer">
+        <a href="{{ url_for('reports.dashboard') }}" class="btn btn-ghost">
+          <i class="fa-solid fa-arrow-left"></i> Voltar
+        </a>
+        <button type="submit" class="btn btn-primary" id="btn-execute" name="_action" value="view">
+          <i class="fa-solid fa-play"></i> Executar Relatório
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ═══ RESULTS ══════════════════════════════════════════════════════════════ -->
+{% if result %}
+  {% if result.error %}
+    <div class="alert alert-error">
+      <i class="fa-solid fa-circle-xmark"></i>
+      {{ result.error }}
+    </div>
+  {% else %}
+    <!-- Result toolbar -->
+    <div class="result-toolbar">
+      <div>
+        <div class="result-count">{{ result.total }}</div>
+        <div class="result-info">
+          registros retornados
+          {% if filtros_desc %} · <span style="color:var(--blue-light);">{{ filtros_desc }}</span>{% endif %}
+        </div>
+      </div>
+      <div class="d-flex gap-8 ml-auto">
+        <button onclick="openModal()" class="btn btn-ghost btn-sm no-print">
+          <i class="fa-solid fa-sliders"></i> Filtros
+        </button>
+
+        <!-- Excel Export -->
+        <form method="POST" action="{{ url_for('reports.export_excel', report_id=report.id) }}"
+              class="no-print" id="excel-form">
+          {% for f in filters %}
+          <input type="hidden" name="{{ f.parametro }}"
+                 value="{{ (params.get(f.parametro) or '') if params else '' }}">
+          {% endfor %}
+          <button type="submit" class="btn btn-success btn-sm">
+            <i class="fa-solid fa-file-excel"></i> Excel
+          </button>
+        </form>
+
+        <!-- Print / PDF -->
+        <form method="POST" action="{{ url_for('reports.print_report', report_id=report.id) }}"
+              class="no-print" target="_blank">
+          {% for f in filters %}
+          <input type="hidden" name="{{ f.parametro }}"
+                 value="{{ (params.get(f.parametro) or '') if params else '' }}">
+          {% endfor %}
+          <button type="submit" class="btn btn-gold btn-sm">
+            <i class="fa-solid fa-print"></i> Imprimir / PDF
+          </button>
+        </form>
+      </div>
+    </div>
+
+    <!-- Table -->
+    <div class="table-wrapper" id="report-table-wrap">
+      <table class="data-table" id="report-table">
+        <thead>
+          <tr>
+            {% for col in result.columns %}
+              {% if result.group_col_idx is none or loop.index0 != result.group_col_idx %}
+              <th style="text-align:{{ col.align }};">{{ col.label }}</th>
+              {% endif %}
+            {% endfor %}
+          </tr>
+        </thead>
+        <tbody id="table-body">
+          {% if result.group_col_idx is not none %}
+            {% set ns = namespace(current_group=none, count=0) %}
+            {% set group_label = result.columns[result.group_col_idx].label | upper %}
+            {% for row in result.rows %}
+              {% set row_group = row[result.group_col_idx] %}
+              
+              {% if row_group != ns.current_group %}
+                {% if not loop.first %}
+                  <tr class="group-footer">
+                    <td colspan="100%" style="text-align:left; padding:12px 12px 24px 12px; font-weight:bold; color:var(--text-color); border-bottom: 1px solid var(--border-color);">
+                      <span style="display:inline-block; width:150px; text-decoration:underline;">TOTAL DE PESSOAS:</span>
+                      <span style="display:inline-block; text-align:center; width:100px;">{{ ns.count }}</span>
+                    </td>
+                  </tr>
+                {% endif %}
+                <tr class="group-header">
+                  <td colspan="100%" style="text-align:left; padding:24px 12px 12px 12px; font-weight:bold; color:var(--text-color);">
+                    <span style="text-decoration:underline;">{{ group_label }}:</span> {{ row_group if row_group else 'NÃO INFORMADO' }}
+                  </td>
+                </tr>
+                {% set ns.current_group = row_group %}
+                {% set ns.count = 0 %}
+              {% endif %}
+              
+              <tr>
+                {% for cell in row %}
+                  {% if loop.index0 != result.group_col_idx %}
+                  <td title="{{ cell }}" style="text-align:{{ result.columns[loop.index0].align }};">
+                    {{ cell }}
+                  </td>
+                  {% endif %}
+                {% endfor %}
+              </tr>
+              {% set ns.count = ns.count + 1 %}
+              
+              {% if loop.last %}
+                <tr class="group-footer">
+                  <td colspan="100%" style="text-align:left; padding:12px 12px 24px 12px; font-weight:bold; color:var(--text-color); border-bottom: 1px solid var(--border-color);">
+                    <span style="display:inline-block; width:150px; text-decoration:underline;">TOTAL DE PESSOAS:</span>
+                    <span style="display:inline-block; text-align:center; width:100px;">{{ ns.count }}</span>
+                  </td>
+                </tr>
+              {% endif %}
+            {% endfor %}
+          {% else %}
+            {% for row in result.rows %}
+            <tr>
+              {% for cell in row %}
+              <td title="{{ cell }}" style="text-align:{{ result.columns[loop.index0].align }};">
+                {{ cell }}
+              </td>
+              {% endfor %}
+            </tr>
+            {% endfor %}
+          {% endif %}
+        </tbody>
+      </table>
+
+      {% if result.truncated %}
+      <div class="truncated-warning">
+        <i class="fa-solid fa-triangle-exclamation"></i>
+        Resultado limitado a {{ result.total }} linhas por segurança. Use filtros para refinar a consulta.
+      </div>
+      {% endif %}
+    </div>
+
+    <!-- Pagination (JS) -->
+    <div class="pagination" id="pagination"></div>
+  {% endif %}
+{% endif %}
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+const ROWS_PER_PAGE = 50;
+
+// ── Modal ──────────────────────────────────────────────────────────────────
+function openModal()  { document.getElementById('filter-modal').classList.add('open'); }
+function closeModal() { document.getElementById('filter-modal').classList.remove('open'); }
+
+// Close modal on backdrop click
+document.getElementById('filter-modal').addEventListener('click', e => {
+  if (e.target === e.currentTarget) closeModal();
+});
+
+// ── Loading on submit ─────────────────────────────────────────────────────
+document.getElementById('report-form').addEventListener('submit', () => {
+  const btn = document.getElementById('btn-execute');
+  btn.innerHTML = '<span class="spinner"></span> Executando…';
+  btn.disabled = true;
+});
+
+// ── Client-side pagination ────────────────────────────────────────────────
+(function() {
+  const tbody = document.getElementById('table-body');
+  const pgDiv = document.getElementById('pagination');
+  if (!tbody || !pgDiv) return;
+
+  const allRows = Array.from(tbody.querySelectorAll('tr'));
+  const total   = allRows.length;
+  if (total <= ROWS_PER_PAGE) return; // No pagination needed
+
+  let currentPage = 1;
+  const totalPages = Math.ceil(total / ROWS_PER_PAGE);
+
+  function showPage(page) {
+    currentPage = Math.max(1, Math.min(page, totalPages));
+    const start = (currentPage - 1) * ROWS_PER_PAGE;
+    const end   = start + ROWS_PER_PAGE;
+    allRows.forEach((tr, i) => {
+      tr.style.display = (i >= start && i < end) ? '' : 'none';
+    });
+    renderPagination();
+  }
+
+  function renderPagination() {
+    const pages = [];
+    const p = currentPage;
+    const t = totalPages;
+    pages.push(1);
+    if (p > 3) pages.push('…');
+    for (let i = Math.max(2, p-1); i <= Math.min(t-1, p+1); i++) pages.push(i);
+    if (p < t - 2) pages.push('…');
+    if (t > 1) pages.push(t);
+
+    pgDiv.innerHTML = `
+      <button class="page-btn ${p<=1?'disabled':''}" onclick="showPage(${p-1})">
+        <i class="fa-solid fa-chevron-left" style="font-size:11px;"></i>
+      </button>
+      ${pages.map(pg => pg === '…'
+        ? `<span class="page-btn" style="cursor:default;">…</span>`
+        : `<button class="page-btn ${pg===p?'active':''}" onclick="showPage(${pg})">${pg}</button>`
+      ).join('')}
+      <button class="page-btn ${p>=t?'disabled':''}" onclick="showPage(${p+1})">
+        <i class="fa-solid fa-chevron-right" style="font-size:11px;"></i>
+      </button>
+      <span class="text-muted" style="margin-left:8px;">
+        Pág. ${p} de ${t} &nbsp;(${total} registros)
+      </span>
+    `;
+  }
+
+  window.showPage = showPage;
+  showPage(1);
+})();
+</script>
+{% endblock %}

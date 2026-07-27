@@ -1,0 +1,250 @@
+{% extends "base.html" %}
+{% block title %}{{ 'Editar' if report else 'Novo' }} Relatório – Admin{% endblock %}
+{% block topbar_title %}
+  <a href="{{ url_for('admin.reports_list') }}" style="color:var(--text-muted);font-size:13px;">
+    <i class="fa-solid fa-chevron-left" style="font-size:10px;"></i> Relatórios
+  </a>
+  <span style="margin:0 8px;color:var(--border);">/</span>
+  {{ 'Editar: ' + report.titulo if report else 'Novo Relatório' }}
+{% endblock %}
+
+{% block content %}
+<form method="POST" action="{{ url_for('admin.report_save') }}" id="report-save-form">
+  {% if report %}<input type="hidden" name="report_id" value="{{ report.id }}">{% endif %}
+
+  <div style="display:grid;grid-template-columns:1fr 380px;gap:20px;align-items:start;">
+
+    <!-- ══ COLUNA PRINCIPAL ═══════════════════════════════════════════════════ -->
+    <div>
+
+      <!-- Dados básicos -->
+      <div class="card mb-16">
+        <div class="card-header">
+          <i class="fa-solid fa-circle-info" style="color:var(--blue);"></i>
+          <span class="card-header-title">Informações Básicas</span>
+        </div>
+        <div class="card-body">
+          <div style="display:grid;grid-template-columns:80px 1fr 160px;gap:12px;">
+            <div class="form-group" style="margin:0;">
+              <label class="form-label">Número *</label>
+              <input class="form-control form-control-plain" type="number" name="numero"
+                     required min="1" value="{{ report.numero if report else '' }}">
+            </div>
+            <div class="form-group" style="margin:0;">
+              <label class="form-label">Título *</label>
+              <input class="form-control form-control-plain" type="text" name="titulo"
+                     required placeholder="Nome do relatório"
+                     value="{{ report.titulo if report else '' }}">
+            </div>
+            <div class="form-group" style="margin:0;">
+              <label class="form-label">Categoria</label>
+              <select class="form-control" name="categoria">
+                {% for cat in ['Acesso','Cadastro','Visitantes','Terceiros','Permissões','Configuração','Geral'] %}
+                <option value="{{ cat }}" {{ 'selected' if report and report.categoria==cat else '' }}>
+                  {{ cat }}
+                </option>
+                {% endfor %}
+              </select>
+            </div>
+          </div>
+          <div class="form-group mt-16" style="margin-bottom:0;">
+            <label class="form-label">Descrição (opcional)</label>
+            <input class="form-control form-control-plain" type="text" name="descricao"
+                   placeholder="Breve descrição do relatório"
+                   value="{{ report.descricao if report else '' }}">
+          </div>
+          <div class="form-group mt-16" style="margin-bottom:0;">
+            <label class="form-label">Agrupar dados pela coluna (Opcional)</label>
+            <input class="form-control form-control-plain" type="text" name="agrupar_por"
+                   placeholder="Ex: LOCA_NOME (deve ser o nome exato da coluna SQL)"
+                   value="{{ report.agrupar_por if report else '' }}">
+            <div style="font-size:11px;color:var(--text-muted);margin-top:4px;">
+              * Para o agrupamento funcionar, o seu SQL deve possuir <code>ORDER BY &lt;coluna&gt;</code> como a primeira ordenação.
+            </div>
+          </div>
+          <div class="mt-16">
+            <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+              <input type="checkbox" name="ativo" value="1"
+                     {{ 'checked' if not report or report.ativo else '' }}
+                     style="accent-color:var(--blue);width:16px;height:16px;">
+              <span class="form-label" style="margin:0;">Relatório ativo (visível para usuários)</span>
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <!-- SQL Editor -->
+      <div class="card mb-16">
+        <div class="card-header">
+          <i class="fa-solid fa-code" style="color:var(--green);"></i>
+          <span class="card-header-title">SQL da Query</span>
+          <button type="button" class="btn btn-success btn-sm ml-auto" id="btn-detect">
+            <i class="fa-solid fa-wand-magic-sparkles"></i> Detectar Colunas
+          </button>
+        </div>
+        <div class="card-body">
+          <div class="sql-editor-wrap">
+            <textarea class="sql-textarea" name="sql_query" id="sql-editor"
+                      placeholder="Cole o SQL do relatório aqui...&#10;&#10;Use :parametro para os filtros. Ex:&#10;  WHERE DT_ACESSO BETWEEN :data_inicio AND :data_fim&#10;  AND NR_MATRICULA = :matricula">{{ report.sql_query if report else '' }}</textarea>
+          </div>
+          <p class="sql-hint">
+            Use <code>:nome_param</code> para parâmetros de filtro. Ex: <code>:data_inicio</code>, <code>:matricula</code>
+          </p>
+          <div id="detect-result" style="display:none;margin-top:10px;"></div>
+        </div>
+      </div>
+
+      <!-- Column Designer -->
+      <div class="card mb-16">
+        <div class="card-header">
+          <i class="fa-solid fa-table-columns" style="color:var(--purple);"></i>
+          <span class="card-header-title">Layout das Colunas</span>
+          <span style="font-size:11px;color:var(--text-muted);margin-left:8px;">
+            Clique em "Detectar Colunas" para popular automaticamente
+          </span>
+        </div>
+        <div class="card-body">
+          <div class="designer-panels">
+            <!-- Available columns -->
+            <div class="designer-panel">
+              <div class="designer-panel-header">
+                <i class="fa-solid fa-database" style="margin-right:6px;"></i>
+                Colunas do SQL
+              </div>
+              <ul class="designer-list" id="available-cols">
+                <!-- Populated by JS -->
+              </ul>
+            </div>
+            <!-- Selected columns -->
+            <div class="designer-panel">
+              <div class="designer-panel-header">
+                <i class="fa-solid fa-check-square" style="margin-right:6px;color:var(--green);"></i>
+                Colunas no Relatório
+                <span style="float:right;font-size:10px;color:var(--text-muted);">arraste para reordenar</span>
+              </div>
+              <ul class="designer-list" id="selected-cols">
+                {% for col in columns %}
+                <li class="designer-item" draggable="true"
+                    data-col="{{ col.coluna_sql }}"
+                    data-label="{{ col.titulo_exibicao }}"
+                    data-align="{{ col.alinhamento }}"
+                    data-width="{{ col.largura }}">
+                  <span class="drag-handle"><i class="fa-solid fa-grip-vertical"></i></span>
+                  <input class="col-label-input" type="text"
+                         value="{{ col.titulo_exibicao }}" placeholder="Título da coluna">
+                  <select class="form-control" style="width:80px;padding:3px 6px;font-size:11px;background:rgba(255,255,255,0.05);">
+                    <option value="left"   {{ 'selected' if col.alinhamento=='left'   }}>← Esq</option>
+                    <option value="center" {{ 'selected' if col.alinhamento=='center' }}>⎔ Cen</option>
+                    <option value="right"  {{ 'selected' if col.alinhamento=='right'  }}>→ Dir</option>
+                  </select>
+                  <button type="button" class="col-remove" title="Remover coluna">
+                    <i class="fa-solid fa-xmark"></i>
+                  </button>
+                </li>
+                {% endfor %}
+              </ul>
+            </div>
+          </div>
+          <p class="sql-hint">
+            <i class="fa-solid fa-arrow-right-arrow-left"></i>
+            Clique em uma coluna disponível para adicioná-la. Arraste as colunas selecionadas para reordenar.
+          </p>
+          <input type="hidden" name="columns_config" id="columns-config-input">
+        </div>
+      </div>
+
+      <!-- Filter Builder -->
+      <div class="card">
+        <div class="card-header">
+          <i class="fa-solid fa-sliders" style="color:var(--gold);"></i>
+          <span class="card-header-title">Filtros do Relatório</span>
+          <button type="button" class="btn btn-ghost btn-sm ml-auto" id="btn-add-filter">
+            <i class="fa-solid fa-plus"></i> Adicionar Filtro
+          </button>
+        </div>
+        <div class="card-body">
+          <div id="filters-container">
+            {% for f in filters %}
+            <div class="filter-row" data-filter>
+              <div>
+                <label class="form-label">Parâmetro SQL</label>
+                <input class="form-control form-control-plain" type="text"
+                       name="f_param" placeholder=":nome_param"
+                       value="{{ f.parametro }}" data-field="parametro">
+              </div>
+              <div>
+                <label class="form-label">Tipo</label>
+                <select class="form-control" name="f_tipo" data-field="tipo" onchange="toggleSqlOptions(this)">
+                  {% for t in ['text','date','number','select','multiselect','checkbox'] %}
+                  <option value="{{ t }}" {{ 'selected' if f.tipo==t }}>{{ t }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+              <div>
+                <label class="form-label">Rótulo (label)</label>
+                <input class="form-control form-control-plain" type="text"
+                       name="f_label" placeholder="Ex: Data Início"
+                       value="{{ f.label }}" data-field="label">
+                <div style="margin-top:6px;">
+                  <label style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--text-muted);cursor:pointer;">
+                    <input type="checkbox" {{ 'checked' if f.obrigatorio }} data-field="obrigatorio"
+                           style="accent-color:var(--blue);">
+                    Obrigatório
+                  </label>
+                </div>
+              </div>
+              <div>
+                <button type="button" class="filter-remove" title="Remover filtro">
+                  <i class="fa-solid fa-xmark"></i>
+                </button>
+              </div>
+              
+              <div class="sql-options-container" style="display: {{ 'block' if f.tipo in ['select', 'multiselect'] else 'none' }}; margin-top: 8px; grid-column: 1 / -1;">
+                <label class="form-label">SQL para Popular a Lista (obrigatório retornar colunas 'value' e 'label')</label>
+                <textarea class="form-control" name="f_sql_opcoes" data-field="sql_opcoes" rows="2" 
+                          placeholder="Ex: SELECT LOCA_ID as value, LOCA_NOME as label FROM FORACESSO.LOCAL_ACESSO">{{ f.sql_opcoes }}</textarea>
+              </div>
+            </div>
+            <div style="border-bottom: 1px solid var(--border); margin: 16px 0;"></div>
+            {% endfor %}
+          </div>
+          <input type="hidden" name="filters_config" id="filters-config-input">
+          <p class="sql-hint mt-8">
+            O parâmetro deve corresponder ao usado no SQL. Ex: parâmetro <code>data_inicio</code> → SQL usa <code>:data_inicio</code>
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ COLUNA LATERAL ════════════════════════════════════════════════════ -->
+    <div style="position:sticky;top:80px;">
+      <div class="card">
+        <div class="card-header">
+          <i class="fa-solid fa-floppy-disk" style="color:var(--blue);"></i>
+          <span class="card-header-title">Salvar</span>
+        </div>
+        <div class="card-body">
+          <button type="submit" class="btn btn-primary btn-lg" id="btn-save">
+            <i class="fa-solid fa-floppy-disk"></i> Salvar Relatório
+          </button>
+          <a href="{{ url_for('admin.reports_list') }}" class="btn btn-ghost w-100 mt-8"
+             style="justify-content:center;">
+            Cancelar
+          </a>
+          {% if report %}
+          <hr style="border:none;border-top:1px solid var(--border);margin:16px 0;">
+          <a href="{{ url_for('reports.view_report', report_id=report.id) }}"
+             class="btn btn-ghost w-100" style="justify-content:center;" target="_blank">
+            <i class="fa-solid fa-eye"></i> Visualizar Relatório
+          </a>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+</form>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/designer.js') }}"></script>
+{% endblock %}

@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+{% block title %}Gerenciar Relatórios – Admin{% endblock %}
+{% block topbar_title %}Administração · Relatórios{% endblock %}
+
+{% block topbar_extra %}
+<!-- Oracle status -->
+<div class="oracle-status {{ 'ok' if oracle_ok else 'error' }}">
+  <span class="status-dot"></span>
+  {{ db_label }} {{ 'Conectado' if oracle_ok else 'Desconectado' }}
+</div>
+<a href="{{ url_for('admin.report_new') }}" class="btn btn-primary btn-sm">
+  <i class="fa-solid fa-plus"></i> Novo Relatório
+</a>
+{% endblock %}
+
+{% block content %}
+<div class="card">
+  <div class="card-header">
+    <i class="fa-solid fa-file-pen" style="color:var(--blue);"></i>
+    <span class="card-header-title">{{ reports|length }} relatórios cadastrados</span>
+    <input type="text" id="admin-search" placeholder="Filtrar…"
+           style="background:rgba(255,255,255,0.05);border:1px solid var(--border);
+                  border-radius:20px;color:var(--text-primary);padding:5px 12px;
+                  font-size:12px;outline:none;width:180px;">
+  </div>
+
+  {% if not reports %}
+  <div class="empty-state">
+    <i class="fa-solid fa-file-circle-plus"></i>
+    <p>Nenhum relatório cadastrado ainda.</p>
+    <a href="{{ url_for('admin.report_new') }}" class="btn btn-primary mt-16">
+      <i class="fa-solid fa-plus"></i> Criar Relatório
+    </a>
+  </div>
+  {% else %}
+  <table class="admin-table" id="admin-table">
+    <thead>
+      <tr>
+        <th style="width:50px;">#</th>
+        <th>Título</th>
+        <th style="width:130px;">Categoria</th>
+        <th style="width:80px;">Status</th>
+        <th style="width:70px;">SQL</th>
+        <th style="width:130px;">Ações</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in reports %}
+      <tr data-title="{{ r.titulo|lower }}" data-num="{{ r.numero }}">
+        <td><span class="badge" style="background:rgba(255,255,255,0.06);color:var(--text-muted);">
+          {{ '%02d'|format(r.numero) }}
+        </span></td>
+        <td>
+          <span style="font-weight:500;">{{ r.titulo }}</span>
+          {% if r.descricao %}
+          <div style="font-size:11px;color:var(--text-muted);margin-top:2px;">{{ r.descricao[:60] }}</div>
+          {% endif %}
+        </td>
+        <td><span class="badge badge-user">{{ r.categoria }}</span></td>
+        <td>
+          <span class="badge {{ 'badge-active' if r.ativo else 'badge-inactive' }}">
+            {{ 'Ativo' if r.ativo else 'Inativo' }}
+          </span>
+        </td>
+        <td style="text-align:center;">
+          {% if r.sql_query and 'não configurado' not in r.sql_query %}
+          <i class="fa-solid fa-check-circle" style="color:var(--green);"></i>
+          {% else %}
+          <i class="fa-solid fa-triangle-exclamation" style="color:var(--gold);" title="SQL pendente"></i>
+          {% endif %}
+        </td>
+        <td>
+          <div class="d-flex gap-8">
+            <a href="{{ url_for('admin.report_edit', report_id=r.id) }}"
+               class="btn btn-ghost btn-sm btn-icon" title="Editar">
+              <i class="fa-solid fa-pen-to-square"></i>
+            </a>
+            <form method="POST" action="{{ url_for('admin.report_toggle', report_id=r.id) }}"
+                  onsubmit="return confirm('Alterar status do relatório?');">
+              <button type="submit" class="btn btn-ghost btn-sm btn-icon"
+                      title="{{ 'Desativar' if r.ativo else 'Ativar' }}">
+                <i class="fa-solid {{ 'fa-eye-slash' if r.ativo else 'fa-eye' }}"></i>
+              </button>
+            </form>
+            <form method="POST" action="{{ url_for('admin.report_delete', report_id=r.id) }}"
+                  onsubmit="return confirm('Excluir o relatório \"{{ r.titulo }}\"? Esta ação não pode ser desfeita.');">
+              <button type="submit" class="btn btn-danger btn-sm btn-icon" title="Excluir">
+                <i class="fa-solid fa-trash"></i>
+              </button>
+            </form>
+          </div>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.getElementById('admin-search').addEventListener('input', function() {
+  const q = this.value.toLowerCase();
+  document.querySelectorAll('#admin-table tbody tr').forEach(tr => {
+    const t = (tr.dataset.title || '') + (tr.dataset.num || '');
+    tr.style.display = !q || t.includes(q) ? '' : 'none';
+  });
+});
+</script>
+{% endblock %}

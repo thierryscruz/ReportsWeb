@@ -1,0 +1,154 @@
+{% extends "base.html" %}
+{% block title %}Usuários – Admin{% endblock %}
+{% block topbar_title %}Administração · Usuários{% endblock %}
+
+{% block topbar_extra %}
+<button class="btn btn-primary btn-sm" onclick="openUserModal()">
+  <i class="fa-solid fa-user-plus"></i> Novo Usuário
+</button>
+{% endblock %}
+
+{% block content %}
+<div class="card">
+  <div class="card-header">
+    <i class="fa-solid fa-users" style="color:var(--blue);"></i>
+    <span class="card-header-title">{{ users|length }} usuários</span>
+  </div>
+  <table class="admin-table">
+    <thead>
+      <tr>
+        <th>Usuário</th>
+        <th>Nome</th>
+        <th>E-mail</th>
+        <th style="width:100px;">Perfil</th>
+        <th style="width:80px;">Status</th>
+        <th style="width:100px;">Ações</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for u in users %}
+      <tr>
+        <td><code style="font-size:12px;color:var(--blue-light);">{{ u.login }}</code></td>
+        <td><strong>{{ u.nome }}</strong></td>
+        <td style="color:var(--text-muted);">{{ u.email or '—' }}</td>
+        <td>
+          <span class="badge {{ 'badge-admin' if u.perfil=='ADMIN' else 'badge-user' }}">
+            <i class="fa-solid {{ 'fa-crown' if u.perfil=='ADMIN' else 'fa-user' }}" style="font-size:9px;"></i>
+            {{ u.perfil }}
+          </span>
+        </td>
+        <td>
+          <span class="badge {{ 'badge-active' if u.ativo=='S' else 'badge-inactive' }}">
+            {{ 'Ativo' if u.ativo=='S' else 'Inativo' }}
+          </span>
+        </td>
+        <td>
+          <div class="d-flex gap-8">
+            <button class="btn btn-ghost btn-sm btn-icon" title="Editar"
+                    onclick="openUserModal({{ u.id }}, '{{ u.login }}', '{{ u.nome }}',
+                             '{{ u.email or '' }}', '{{ u.perfil }}', '{{ u.ativo }}')">
+              <i class="fa-solid fa-pen-to-square"></i>
+            </button>
+            {% if u.id != current_user.id %}
+            <form method="POST" action="{{ url_for('admin.user_delete', user_id=u.id) }}"
+                  onsubmit="return confirm('Excluir o usuário {{ u.nome }}?');">
+              <button type="submit" class="btn btn-danger btn-sm btn-icon" title="Excluir">
+                <i class="fa-solid fa-trash"></i>
+              </button>
+            </form>
+            {% endif %}
+          </div>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<!-- ══ USER MODAL ══════════════════════════════════════════════════════════ -->
+<div class="modal-overlay" id="user-modal">
+  <div class="modal" style="max-width:480px;">
+    <div class="modal-header">
+      <div class="modal-icon" style="background:rgba(59,130,246,0.15);color:var(--blue);">
+        <i class="fa-solid fa-user-gear"></i>
+      </div>
+      <div>
+        <div class="modal-title" id="modal-title">Novo Usuário</div>
+        <div class="modal-subtitle">Preencha os dados do usuário</div>
+      </div>
+      <button class="modal-close" onclick="closeUserModal()">
+        <i class="fa-solid fa-xmark"></i>
+      </button>
+    </div>
+    <form method="POST" action="{{ url_for('admin.user_save') }}">
+      <input type="hidden" name="user_id" id="modal-user-id">
+      <div class="modal-body">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+          <div class="form-group" style="margin:0;">
+            <label class="form-label">Login *</label>
+            <input class="form-control form-control-plain" type="text" name="login"
+                   id="modal-login" required placeholder="login.usuario">
+          </div>
+          <div class="form-group" style="margin:0;">
+            <label class="form-label">Perfil</label>
+            <select class="form-control" name="perfil" id="modal-perfil">
+              <option value="USUARIO">Usuário</option>
+              <option value="ADMIN">Admin</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-group mt-16">
+          <label class="form-label">Nome completo *</label>
+          <input class="form-control form-control-plain" type="text" name="nome"
+                 id="modal-nome" required placeholder="Nome do usuário">
+        </div>
+        <div class="form-group">
+          <label class="form-label">E-mail</label>
+          <input class="form-control form-control-plain" type="email" name="email"
+                 id="modal-email" placeholder="email@reportsweb.com.br">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Senha <span id="pass-hint" style="font-weight:400;color:var(--text-muted);">(deixe em branco para manter)</span></label>
+          <input class="form-control form-control-plain" type="password" name="senha"
+                 id="modal-senha" placeholder="Nova senha" autocomplete="new-password">
+        </div>
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+          <input type="checkbox" name="ativo" id="modal-ativo" value="S"
+                 style="accent-color:var(--blue);width:16px;height:16px;" checked>
+          <span class="form-label" style="margin:0;">Usuário ativo</span>
+        </label>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-ghost" onclick="closeUserModal()">Cancelar</button>
+        <button type="submit" class="btn btn-primary">
+          <i class="fa-solid fa-floppy-disk"></i> Salvar
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function openUserModal(id, login, nome, email, perfil, ativo) {
+  const isNew = !id;
+  document.getElementById('modal-title').textContent  = isNew ? 'Novo Usuário' : 'Editar Usuário';
+  document.getElementById('modal-user-id').value = id   || '';
+  document.getElementById('modal-login').value   = login || '';
+  document.getElementById('modal-nome').value    = nome  || '';
+  document.getElementById('modal-email').value   = email || '';
+  document.getElementById('modal-perfil').value  = perfil || 'USUARIO';
+  document.getElementById('modal-ativo').checked = !ativo || ativo === 'S';
+  document.getElementById('pass-hint').style.display = isNew ? 'none' : '';
+  document.getElementById('modal-senha').placeholder = isNew ? 'Senha obrigatória' : 'Deixe em branco para manter';
+  document.getElementById('user-modal').classList.add('open');
+}
+function closeUserModal() {
+  document.getElementById('user-modal').classList.remove('open');
+}
+document.getElementById('user-modal').addEventListener('click', e => {
+  if (e.target === e.currentTarget) closeUserModal();
+});
+</script>
+{% endblock %}

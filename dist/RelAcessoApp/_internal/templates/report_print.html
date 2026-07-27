@@ -1,0 +1,450 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+  <meta charset="UTF-8">
+  <title>{{ report.titulo }}</title>
+  <style>
+    /* ── Reset ──────────────────────────────────────────────────────────── */
+    *,
+    *::before,
+    *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html {
+      font-size: 12px;
+    }
+
+    body {
+      font-family: Arial, Helvetica, sans-serif;
+      background: white;
+      color: #111;
+    }
+
+    /* ── Página ─────────────────────────────────────────────────────────── */
+    @page {
+      size: A4 landscape;
+      margin: 12mm 10mm 16mm 10mm;
+
+      @bottom-left {
+        content: "{{ cfg.get('print_footer', '') }}";
+        font-size: 9px;
+        color: #444;
+      }
+
+      @bottom-right {
+        content: "C.N.P.J. {{ cfg.get('empresa_cnpj', '') }}";
+        font-size: 9px;
+        color: #444;
+      }
+    }
+
+    .print-wrap {
+      width: 100%;
+    }
+
+    /* ══ SECTION 1 – Report Header ═════════════════════════════════════════ */
+    .rpt-header {
+      display: grid;
+      grid-template-columns: 160px 1fr 180px;
+      align-items: center;
+      gap: 8px;
+      padding-bottom: 6px;
+      border-bottom: 2px solid #1E3A5F;
+      margin-bottom: 6px;
+    }
+
+    .rpt-header-logo img {
+      max-width: 150px;
+      max-height: 50px;
+      object-fit: contain;
+    }
+
+    .rpt-header-title {
+      text-align: center;
+      font-size: 14px;
+      font-weight: bold;
+      text-transform: uppercase;
+      color: #1E3A5F;
+      letter-spacing: 0.5px;
+    }
+
+    .rpt-header-meta {
+      text-align: right;
+      font-size: 9px;
+      color: #444;
+      line-height: 1.7;
+    }
+
+    .rpt-header-meta strong {
+      font-size: 10px;
+      color: #1E3A5F;
+    }
+
+    /* ══ SECTION – Período / Filtros ═══════════════════════════════════════ */
+    .rpt-filters {
+      font-size: 9.5px;
+      color: #333;
+      padding: 4px 0 6px;
+      border-bottom: 1px solid #B0C4DE;
+      margin-bottom: 0;
+    }
+
+    .rpt-filters span {
+      color: #1E3A5F;
+      font-weight: bold;
+    }
+
+    /* ══ SECTION 2 – Page Header (col headers) ═════════════════════════════ */
+    /* ══ SECTION 3 – Details ════════════════════════════════════════════════ */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 9.5px;
+    }
+
+    thead {
+      display: table-header-group;
+      /* repeat on each printed page */
+    }
+
+    thead tr.col-header th {
+      background: #1E3A5F;
+      color: white;
+      font-size: 9px;
+      font-weight: bold;
+      text-transform: uppercase;
+      letter-spacing: 0.3px;
+      padding: 4px 6px;
+      border: 1px solid #14294A;
+      white-space: nowrap;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+
+    tbody tr {
+      page-break-inside: avoid;
+      break-inside: avoid;
+    }
+
+    tbody tr td {
+      padding: 3px 6px;
+      border-bottom: 1px solid #E2E8F0;
+      border-left: 1px solid #E2E8F0;
+      border-right: 1px solid #E2E8F0;
+      color: #222;
+      word-break: break-word;
+    }
+
+    tbody tr:nth-child(even) td {
+      background: #EBF2FA;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+
+    tbody tr:last-child td {
+      border-bottom: 2px solid #1E3A5F;
+    }
+
+    /* ══ SECTION 4 – Report Footer (totais) ════════════════════════════════ */
+    .rpt-total {
+      font-size: 9px;
+      color: #555;
+      text-align: right;
+      padding: 4px 6px 0;
+      border-top: 1px solid #B0C4DE;
+      margin-top: 2px;
+    }
+
+    /* ══ SECTION 5 – Page Footer ════════════════════════════════════════════ */
+    .rpt-footer {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 9px;
+      color: #444;
+      padding: 3px 2px;
+      border-top: 1px solid #B0C4DE;
+      background: white;
+    }
+
+    /* ── Error ───────────────────────────────────────────────────────────── */
+    .error-box {
+      color: #dc2626;
+      padding: 20px;
+      border: 1px solid #fca5a5;
+      border-radius: 4px;
+      margin: 20px 0;
+    }
+
+    /* ── Screen only ─────────────────────────────────────────────────────── */
+    @media screen {
+      body {
+        background: #e5e7eb;
+        padding: 20px;
+      }
+
+      .print-wrap {
+        background: white;
+        max-width: 1100px;
+        margin: 0 auto;
+        padding: 20px 24px 80px;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+      }
+
+      .rpt-footer {
+        position: static;
+        border-top: 2px solid #B0C4DE;
+        margin-top: 24px;
+      }
+
+      .screen-btn {
+        display: flex;
+        gap: 10px;
+        justify-content: center;
+        margin-bottom: 20px;
+      }
+
+      .screen-btn button {
+        padding: 8px 22px;
+        border-radius: 6px;
+        cursor: pointer;
+        font-size: 13px;
+        font-weight: 600;
+        border: none;
+      }
+
+      .btn-print {
+        background: #1E3A5F;
+        color: white;
+      }
+
+      .btn-close {
+        background: #e5e7eb;
+        color: #333;
+      }
+    }
+
+    @media print {
+      .screen-btn {
+        display: none !important;
+      }
+    }
+  </style>
+</head>
+
+<body>
+
+  <!-- ── Botões apenas na tela ──────────────────────────────────────────── -->
+  <div class="screen-btn">
+    <button class="btn-print" onclick="window.print()">🖨️ Imprimir / Salvar PDF</button>
+    <button class="btn-close" onclick="window.close()">✕ Fechar</button>
+  </div>
+
+  <div class="print-wrap">
+
+    <!-- ══ Section 1 – Report Header ══════════════════════════════════════════ -->
+    <div class="rpt-header">
+      <!-- Logo -->
+      <div class="rpt-header-logo">
+        {% if cfg.get('logo_path') %}
+        <img src="{{ url_for('static', filename=cfg['logo_path']) }}" alt="{{ cfg.get('empresa_nome', '') }}">
+        {% endif %}
+      </div>
+
+      <!-- Título centralizado -->
+      <div class="rpt-header-title">{{ report.titulo }}</div>
+
+      <!-- Meta: sistema, data, página -->
+      <div class="rpt-header-meta">
+        <strong>{{ cfg.get('sistema_nome', '') }}</strong><br>
+        <span id="rpt-date"></span><br>
+      </div>
+    </div>
+
+    <!-- ══ Filtros / Período ════════════════════════════════════════════════════ -->
+    {% if periodo_desc %}
+    <div class="rpt-filters" style="margin-top: 10px; font-size: 10px; color: #333; margin-bottom: 5px;">
+      <span style="font-weight: bold;">Período:</span> {{ periodo_desc }}
+    </div>
+    {% endif %}
+
+    <!-- ══ Section 2+3 – Tabela ════════════════════════════════════════════════ -->
+    {% if result and result.error %}
+    <div class="error-box">
+      <strong>Erro ao executar o relatório:</strong><br>{{ result.error }}
+    </div>
+    {% elif result %}
+    <table>
+      <thead>
+        <tr class="col-header">
+          {% for col in result.columns %}
+            {% if result.group_col_idx is none or loop.index0 != result.group_col_idx %}
+            <th style="text-align:{{ col.align }};">{{ col.label }}</th>
+            {% endif %}
+          {% endfor %}
+        </tr>
+      </thead>
+      <tbody>
+        {% if result.group_col_idx is not none %}
+          {% set ns = namespace(current_group=none, count=0) %}
+          {% set group_label = result.columns[result.group_col_idx].label | upper %}
+          {% for row in result.rows %}
+            {% set row_group = row[result.group_col_idx] %}
+            
+            {% if row_group != ns.current_group %}
+              {% if not loop.first %}
+                <tr class="group-footer">
+                  <td colspan="100%" style="text-align:left; padding:8px 8px 16px 8px; font-weight:bold; color:#000; border-bottom: 1px solid #ccc;">
+                    <span style="display:inline-block; width:150px; text-decoration:underline;">TOTAL DE PESSOAS:</span>
+                    <span style="display:inline-block; text-align:center; width:80px;">{{ ns.count }}</span>
+                  </td>
+                </tr>
+              {% endif %}
+              <tr class="group-header">
+                <td colspan="100%" style="text-align:left; padding:16px 8px 8px 8px; font-weight:bold; color:#000;">
+                  <span style="text-decoration:underline;">{{ group_label }}:</span> {{ row_group if row_group else 'NÃO INFORMADO' }}
+                </td>
+              </tr>
+              {% set ns.current_group = row_group %}
+              {% set ns.count = 0 %}
+            {% endif %}
+            
+            <tr>
+              {% for cell in row %}
+                {% if loop.index0 != result.group_col_idx %}
+                <td style="text-align:{{ result.columns[loop.index0].align }};">
+                  {{ cell if cell is not none else '' }}
+                </td>
+                {% endif %}
+              {% endfor %}
+            </tr>
+            {% set ns.count = ns.count + 1 %}
+            
+            {% if loop.last %}
+              <tr class="group-footer">
+                <td colspan="100%" style="text-align:left; padding:8px 8px 16px 8px; font-weight:bold; color:#000; border-bottom: 1px solid #ccc;">
+                  <span style="display:inline-block; width:150px; text-decoration:underline;">TOTAL DE PESSOAS:</span>
+                  <span style="display:inline-block; text-align:center; width:80px;">{{ ns.count }}</span>
+                </td>
+              </tr>
+            {% endif %}
+          {% endfor %}
+        {% else %}
+          {% for row in result.rows %}
+          <tr>
+            {% for cell in row %}
+            <td style="text-align:{{ result.columns[loop.index0].align }};">
+              {{ cell if cell is not none else '' }}
+            </td>
+            {% endfor %}
+          </tr>
+          {% endfor %}
+        {% endif %}
+      </tbody>
+      <!-- Espaçador vazio no final da tabela para o rodapé fixo não sobrepor os dados nas impressões -->
+      <tfoot>
+        <tr>
+          <td colspan="99" style="height: 30px; border: none; background: transparent;"></td>
+        </tr>
+      </tfoot>
+    </table>
+
+    <!-- ══ Section 4 – Report Footer (totais) ══════════════════════════════ -->
+    <div class="rpt-total">
+      Total: <strong>{{ result.total }}</strong> registro(s)
+      {% if result.truncated %}
+      &nbsp;·&nbsp; <em style="color:#b45309;">⚠ Resultado limitado a {{ result.total }} linhas</em>
+      {% endif %}
+    </div>
+    {% endif %}
+
+    <!-- ══ Section 5 – Page Footer (Template) ════════════════════════════════════════════ -->
+    <div class="rpt-footer">
+      <span>{{ cfg.get('print_footer', '') }}</span>
+      <span class="page-number-placeholder"></span>
+      <span>C.N.P.J. {{ cfg.get('empresa_cnpj', '') }}</span>
+    </div>
+
+  </div> <!-- End of source print-wrap -->
+
+  <div id="paginated-container"></div>
+
+  <script>
+    // ── Preenche data/hora atual no template base ──
+    const now = new Date();
+    const fmt = d => ('0' + d.getDate()).slice(-2) + '/' + ('0' + (d.getMonth() + 1)).slice(-2) + '/' + d.getFullYear() + ' ' + ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2);
+    const dateEl = document.getElementById('rpt-date');
+    if (dateEl) dateEl.textContent = fmt(now);
+
+    // ── Paginação JavaScript para PDF perfeito ──
+    window.onload = function() {
+      const sourceWrap = document.querySelector('.print-wrap');
+      const tbody = sourceWrap.querySelector('tbody');
+      
+      // Se não houver dados, não pagina
+      if (!tbody || tbody.children.length === 0) {
+        document.querySelector('.page-number-placeholder').innerHTML = "Página 1 de 1";
+        return; 
+      }
+
+      const rows = Array.from(tbody.querySelectorAll('tr'));
+      const ROWS_PER_PAGE = 35; // Ideal para A4 Paisagem
+      
+      const totalPages = Math.ceil(rows.length / ROWS_PER_PAGE);
+      const container = document.getElementById('paginated-container');
+      
+      // Salva os templates das seções
+      const headerHTML = sourceWrap.querySelector('.rpt-header').outerHTML;
+      const filtersEl = sourceWrap.querySelector('.rpt-filters');
+      const filtersHTML = filtersEl ? filtersEl.outerHTML : '';
+      const tableHeaderHTML = sourceWrap.querySelector('thead').outerHTML;
+      const totalHTML = sourceWrap.querySelector('.rpt-total') ? sourceWrap.querySelector('.rpt-total').outerHTML : '';
+      const footerTemplate = sourceWrap.querySelector('.rpt-footer').outerHTML;
+
+      for (let i = 0; i < totalPages; i++) {
+        const pageNum = i + 1;
+        const pageDiv = document.createElement('div');
+        pageDiv.className = 'print-wrap';
+        pageDiv.style.pageBreakAfter = (pageNum < totalPages) ? 'always' : 'auto';
+        if (pageNum > 1) pageDiv.style.marginTop = '0'; // Apenas primeira pág tem margem de tela
+        
+        // Pega as linhas desta página
+        const chunk = rows.slice(i * ROWS_PER_PAGE, (i + 1) * ROWS_PER_PAGE);
+        const rowsHTML = chunk.map(tr => tr.outerHTML).join('');
+        
+        // Monta a tabela desta página
+        const tableHTML = `<table>${tableHeaderHTML}<tbody>${rowsHTML}</tbody></table>`;
+        
+        // Substitui o placeholder da página no rodapé
+        const pageFooterHTML = footerTemplate.replace(
+          '<span class="page-number-placeholder"></span>', 
+          `<span style="font-weight:bold; color:#1E3A5F;">Página ${pageNum} de ${totalPages}</span>`
+        );
+
+        // Monta o HTML da página inteira
+        pageDiv.innerHTML = `
+          ${headerHTML}
+          ${filtersHTML}
+          ${tableHTML}
+          ${pageNum === totalPages ? totalHTML : ''}
+          ${pageFooterHTML}
+        `;
+        
+        container.appendChild(pageDiv);
+      }
+      
+      // Oculta a estrutura original
+      sourceWrap.style.display = 'none';
+    };
+  </script>
+</body>
+
+</html>

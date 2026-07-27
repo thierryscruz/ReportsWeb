@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+
+{% block title %}Relatórios – ReportsWeb{% endblock %}
+{% block topbar_title %}Central de Relatórios{% endblock %}
+
+{% block topbar_extra %}
+<div class="topbar-search">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="text" id="search-input" placeholder="Buscar relatório…" autocomplete="off">
+</div>
+{% endblock %}
+
+{% block content %}
+<!-- Stats -->
+<div class="stats-grid">
+  <div class="stat-card">
+    <div class="stat-icon" style="background:linear-gradient(135deg,#3b82f6,#1d4ed8);">
+      <i class="fa-solid fa-file-lines"></i>
+    </div>
+    <div>
+      <div class="stat-value">{{ total }}</div>
+      <div class="stat-label">Relatórios disponíveis</div>
+    </div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon" style="background:linear-gradient(135deg,#10b981,#059669);">
+      <i class="fa-solid fa-layer-group"></i>
+    </div>
+    <div>
+      <div class="stat-value">{{ grouped|length }}</div>
+      <div class="stat-label">Categorias</div>
+    </div>
+  </div>
+</div>
+
+<!-- Empty state -->
+{% if not grouped %}
+<div class="empty-state">
+  <i class="fa-solid fa-folder-open"></i>
+  <p>Nenhum relatório cadastrado.</p>
+  {% if current_user.is_admin %}
+  <a href="{{ url_for('admin.report_new') }}" class="btn btn-primary mt-16">
+    <i class="fa-solid fa-plus"></i> Criar Primeiro Relatório
+  </a>
+  {% endif %}
+</div>
+{% endif %}
+
+<!-- Report groups -->
+{% for category, reports in grouped.items() %}
+<div class="category-section" data-category="{{ category }}">
+  <div class="category-header">
+    <div class="category-badge" style="background:{{ colors.get(category,'#64748b') }}20;color:{{ colors.get(category,'#64748b') }};">
+      <i class="fa-solid {{ icons.get(category, 'fa-file-lines') }}"></i>
+    </div>
+    <span class="category-name">{{ category }}</span>
+    <span class="category-count">{{ reports|length }} relatório{{ 's' if reports|length != 1 else '' }}</span>
+  </div>
+
+  <div class="reports-grid">
+    {% for report in reports %}
+    <a href="{{ url_for('reports.view_report', report_id=report.id) }}"
+       class="report-card"
+       data-title="{{ report.titulo|lower }}"
+       data-num="{{ report.numero }}"
+       style="--card-color:{{ colors.get(report.categoria,'#64748b') }};">
+      <div class="report-card-header">
+        <span class="report-num">#{{ '%02d'|format(report.numero) }}</span>
+        <span class="report-title">{{ report.titulo }}</span>
+        <div class="report-icon" style="background:{{ colors.get(report.categoria,'#64748b') }}25;color:{{ colors.get(report.categoria,'#64748b') }};">
+          <i class="fa-solid {{ icons.get(report.categoria, 'fa-file-lines') }}"></i>
+        </div>
+      </div>
+      <div class="report-category-tag">
+        <i class="fa-solid fa-filter" style="font-size:10px;"></i>
+        {% if report.descricao %}<span>{{ report.descricao[:60] }}</span>
+        {% else %}<span class="text-muted">Clique para abrir os filtros</span>{% endif %}
+      </div>
+    </a>
+    {% endfor %}
+  </div>
+</div>
+{% endfor %}
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Real-time search
+const searchInput = document.getElementById('search-input');
+searchInput.addEventListener('input', () => {
+  const q = searchInput.value.toLowerCase().trim();
+  document.querySelectorAll('.report-card').forEach(card => {
+    const title = card.dataset.title || '';
+    const num   = card.dataset.num   || '';
+    const match = !q || title.includes(q) || num.includes(q);
+    card.classList.toggle('hidden', !match);
+  });
+  // Hide empty category sections
+  document.querySelectorAll('.category-section').forEach(sec => {
+    const visible = sec.querySelectorAll('.report-card:not(.hidden)').length;
+    sec.style.display = visible ? '' : 'none';
+  });
+});
+</script>
+{% endblock %}
