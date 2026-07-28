@@ -117,12 +117,14 @@
             </div>
             <!-- Selected columns -->
             <div class="designer-panel">
-              <div class="designer-panel-header">
-                <i class="fa-solid fa-check-square" style="margin-right:6px;color:var(--green);"></i>
-                Colunas no Relatório
-                <span style="float:right;font-size:10px;color:var(--text-muted);">arraste para reordenar</span>
+              <div class="designer-panel-header" style="display:flex; justify-content:space-between; align-items:center;">
+                <div>
+                  <i class="fa-solid fa-check-square" style="margin-right:6px;color:var(--green);"></i>
+                  Colunas no Relatório
+                </div>
+                <span style="font-size:10px;color:var(--text-muted);text-transform:none;letter-spacing:normal;">arraste para reordenar</span>
               </div>
-              <ul class="designer-list" id="selected-cols">
+              <ul class="designer-list" id="selected-cols" style="width:100%; box-sizing:border-box; margin:0;">
                 {% for col in columns %}
                 <li class="designer-item" draggable="true"
                     data-col="{{ col.coluna_sql }}"
@@ -132,7 +134,7 @@
                   <span class="drag-handle"><i class="fa-solid fa-grip-vertical"></i></span>
                   <input class="col-label-input" type="text"
                          value="{{ col.titulo_exibicao }}" placeholder="Título da coluna">
-                  <select class="form-control" style="width:80px;padding:3px 6px;font-size:11px;background:rgba(255,255,255,0.05);">
+                  <select class="col-align-select">
                     <option value="left"   {{ 'selected' if col.alinhamento=='left'   }}>← Esq</option>
                     <option value="center" {{ 'selected' if col.alinhamento=='center' }}>⎔ Cen</option>
                     <option value="right"  {{ 'selected' if col.alinhamento=='right'  }}>→ Dir</option>

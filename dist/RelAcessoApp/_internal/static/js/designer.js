@@ -74,9 +74,9 @@ function makeAvailableItem(colName) {
   li.className   = 'designer-item';
   li.dataset.col = colName;
   li.innerHTML   = `
-    <i class="fa-solid fa-database" style="color:var(--text-muted);font-size:11px;"></i>
-    <span style="flex:1;font-family:monospace;font-size:11px;">${colName}</span>
-    <button type="button" class="btn btn-primary btn-sm btn-icon" title="Adicionar">
+    <i class="fa-solid fa-database" style="color:var(--text-muted);font-size:11px;flex-shrink:0;"></i>
+    <span class="col-name">${colName}</span>
+    <button type="button" class="btn btn-primary btn-sm btn-icon" title="Adicionar" style="flex-shrink:0;">
       <i class="fa-solid fa-plus"></i>
     </button>
   `;
@@ -107,7 +107,7 @@ function makeSelectedItem(colKey, label, align = 'left') {
   li.innerHTML   = `
     <span class="drag-handle"><i class="fa-solid fa-grip-vertical"></i></span>
     <input class="col-label-input" type="text" value="${label}" placeholder="Título da coluna">
-    <select class="form-control" style="width:80px;padding:3px 6px;font-size:11px;background:rgba(255,255,255,0.05);">
+    <select class="col-align-select">
       <option value="left"   ${align==='left'  ?'selected':''}>← Esq</option>
       <option value="center" ${align==='center'?'selected':''}>⎔ Cen</option>
       <option value="right"  ${align==='right' ?'selected':''}>→ Dir</option>
